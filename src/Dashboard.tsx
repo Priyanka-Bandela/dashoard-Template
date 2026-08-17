@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type FC, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FC,
+  type ReactNode,
+} from "react";
 
 import {
   ResponsiveContainer,
@@ -12,11 +19,25 @@ import {
   Pie,
   Cell,
   Legend,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
 } from "recharts";
 
-import { RefreshCw, Search, X } from "lucide-react";
+import {
+  RefreshCw,
+  Search,
+  X,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  GitBranch,
+  Building2,
+  ShieldCheck,
+  PieChart as PieChartIcon,
+  SlidersHorizontal,
+  Clock,
+  Check,
+} from "lucide-react";
 
 import "./App.css";
 
@@ -29,7 +50,18 @@ import type {
   ChartItem,
 } from "./types";
 
-const COLORS = ["#081b70", "#2878e8"];
+const COLORS = ["#6366f1", "#fb923c"];
+
+const PALETTE = [
+  "#6366f1",
+  "#fb923c",
+  "#10b981",
+  "#0ea5e9",
+  "#f43f5e",
+  "#a855f7",
+  "#eab308",
+  "#14b8a6",
+];
 
 const DATA_URLS = {
   dashboard: "/data/Dashboard.json",
@@ -58,6 +90,8 @@ interface CardProps {
   title: string;
   children: React.ReactNode;
   className?: string;
+  icon?: ReactNode;
+  action?: ReactNode;
 }
 
 interface BarChartCardProps {
@@ -65,6 +99,26 @@ interface BarChartCardProps {
   data: ChartItem[];
   rotate?: boolean;
   height?: number;
+}
+
+interface StatCardProps {
+  label: string;
+  value: string;
+  icon: ReactNode;
+  accent?: "indigo" | "blue" | "emerald" | "amber";
+}
+
+interface RankedListProps {
+  title: string;
+  icon?: ReactNode;
+  data: ChartItem[];
+}
+
+interface HighlightCardProps {
+  label: string;
+  value: string;
+  sublabel?: string;
+  data: { name?: string; date?: string; count: number }[];
 }
 
 /* =========================================
@@ -80,28 +134,88 @@ const truncate = (value: string | null | undefined, length = 22): string => {
   return value.length > length ? `${value.substring(0, length)}...` : value;
 };
 
+const initials = (value: string | null | undefined): string => {
+  if (!value || value === "N/A") return "-";
+
+  const parts = value.trim().split(/\s+/);
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+};
+
 /* =========================================
    FILTER
 ========================================= */
 
 const Filter: FC<FilterProps> = ({ label, value, options, onChange }) => {
-  const handleChange = (event: ChangeEvent<HTMLSelectElement>) => {
-    onChange(event.target.value);
+  const [open, setOpen] = useState(false);
+
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelect = (option: string) => {
+    onChange(option);
+    setOpen(false);
   };
 
   return (
-    <div className="filter">
+    <div
+      className={`filter ${value !== "All" ? "filter-active" : ""}`}
+      ref={rootRef}
+    >
       <label>{label}</label>
 
-      <select value={value} onChange={handleChange}>
-        <option value="All">All</option>
+      <div className="filter-dropdown">
+        <button
+          type="button"
+          className="filter-dropdown-trigger"
+          onClick={() => setOpen((prev) => !prev)}
+        >
+          <span>{value}</span>
+          <ChevronDown
+            size={14}
+            className={`filter-caret ${open ? "filter-caret-open" : ""}`}
+          />
+        </button>
 
-        {options?.map((option: string) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
+        {open && (
+          <div className="filter-dropdown-menu">
+            <button
+              type="button"
+              className={`filter-dropdown-option ${value === "All" ? "is-selected" : ""}`}
+              onClick={() => handleSelect("All")}
+            >
+              <span>All</span>
+              {value === "All" && <Check size={13} />}
+            </button>
+
+            {options?.map((option: string) => (
+              <button
+                type="button"
+                key={option}
+                className={`filter-dropdown-option ${value === option ? "is-selected" : ""}`}
+                onClick={() => handleSelect(option)}
+              >
+                <span>{option}</span>
+                {value === option && <Check size={13} />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -110,12 +224,36 @@ const Filter: FC<FilterProps> = ({ label, value, options, onChange }) => {
    CARD
 ========================================= */
 
-const Card: FC<CardProps> = ({ title, children, className = "" }) => {
+const Card: FC<CardProps> = ({ title, children, className = "", icon, action }) => {
   return (
     <div className={`card ${className}`}>
-      <div className="card-title">{title}</div>
+      <div className="card-title">
+        <span className="card-title-text">
+          {icon && <span className="card-title-icon">{icon}</span>}
+          {title}
+        </span>
 
-      {children}
+        {action}
+      </div>
+
+      <div className="card-body">{children}</div>
+    </div>
+  );
+};
+
+/* =========================================
+   STAT CARD
+========================================= */
+
+const StatCard: FC<StatCardProps> = ({ label, value, icon, accent = "indigo" }) => {
+  return (
+    <div className={`stat-tile stat-tile--${accent}`}>
+      <div className="stat-tile-icon">{icon}</div>
+
+      <div className="stat-tile-text">
+        <div className="stat-tile-value">{value}</div>
+        <div className="stat-tile-label">{label}</div>
+      </div>
     </div>
   );
 };
@@ -130,11 +268,23 @@ const BarChartCard: FC<BarChartCardProps> = ({
   rotate = false,
   height = 220,
 }) => {
+  if (data.length === 0) {
+    return (
+      <Card title={title} className="chart-card">
+        <div className="chart-empty" style={{ height }}>
+          <PieChartIcon size={22} />
+          <span>No data available</span>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card title={title} className="chart-card">
       <ResponsiveContainer width="100%" height={height}>
         <BarChart
           data={data}
+          barCategoryGap={data.length <= 4 ? "35%" : "18%"}
           margin={{
             top: 10,
             right: 10,
@@ -142,7 +292,7 @@ const BarChartCard: FC<BarChartCardProps> = ({
             bottom: rotate ? 70 : 10,
           }}
         >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
 
           <XAxis
             dataKey="name"
@@ -151,27 +301,130 @@ const BarChartCard: FC<BarChartCardProps> = ({
             textAnchor={rotate ? "end" : "middle"}
             tick={{
               fontSize: 10,
+              fill: "#64748b",
             }}
+            axisLine={{ stroke: "#e2e8f0" }}
+            tickLine={false}
           />
 
           <YAxis
             allowDecimals={false}
             tick={{
               fontSize: 10,
+              fill: "#64748b",
+            }}
+            axisLine={false}
+            tickLine={false}
+          />
+
+          <Tooltip
+            cursor={{ fill: "rgba(99, 102, 241, 0.08)" }}
+            contentStyle={{
+              borderRadius: 10,
+              border: "1px solid #e2e8f0",
+              boxShadow: "0 8px 24px rgba(15, 23, 42, 0.08)",
+              fontSize: 12,
             }}
           />
 
-          <Tooltip />
-
-          <Bar
-            dataKey="count"
-            fill="#081b70"
-            radius={[2, 2, 0, 0]}
-            maxBarSize={28}
-          />
+          <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={54}>
+            {data.map((entry, index) => (
+              <Cell key={entry.name} fill={PALETTE[index % PALETTE.length]} />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </Card>
+  );
+};
+
+/* =========================================
+   RANKED LIST (colorful ranking bars)
+========================================= */
+
+const RankedList: FC<RankedListProps> = ({ title, icon, data }) => {
+  const max = Math.max(...data.map((item) => item.count), 1);
+
+  if (data.length === 0) {
+    return (
+      <Card title={title} icon={icon}>
+        <div className="chart-empty">
+          <Building2 size={22} />
+          <span>No data available</span>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card title={title} icon={icon}>
+      <div className="ranked-list">
+        {data.map((item, index) => (
+          <div className="ranked-row" key={item.name}>
+            <span
+              className="ranked-dot"
+              style={{ background: PALETTE[index % PALETTE.length] }}
+            />
+
+            <span className="ranked-name" title={item.name}>
+              {truncate(item.name, 18)}
+            </span>
+
+            <div className="ranked-bar-track">
+              <div
+                className="ranked-bar-fill"
+                style={{
+                  width: `${(item.count / max) * 100}%`,
+                  background: PALETTE[index % PALETTE.length],
+                }}
+              />
+            </div>
+
+            <span className="ranked-count">{item.count}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+};
+
+/* =========================================
+   HIGHLIGHT CARD (gradient CTA)
+========================================= */
+
+const HighlightCard: FC<HighlightCardProps> = ({
+  label,
+  value,
+  sublabel,
+  data,
+}) => {
+  return (
+    <div className="highlight-card">
+      <div>
+        <div className="highlight-card-value">{value}</div>
+        <div className="highlight-card-label">{label}</div>
+        {sublabel && <div className="highlight-card-sub">{sublabel}</div>}
+      </div>
+
+      <ResponsiveContainer width="100%" height={70}>
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="highlightArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity={0.6} />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+
+          <Area
+            type="monotone"
+            dataKey="count"
+            stroke="#ffffff"
+            strokeWidth={2}
+            fill="url(#highlightArea)"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
   );
 };
 
@@ -345,6 +598,8 @@ function Dashboard() {
 
   const managedByData = createChartData("managed_by").slice(0, 25);
 
+  const managingDirectorListData = managingDirectorData.slice(0, 8);
+
   /* =====================================
      PIE DATA
   ====================================== */
@@ -420,6 +675,22 @@ function Dashboard() {
 
   const filterOptions = dashboard.filter_options;
 
+  const passCount =
+    evaluationSummary.total_executions -
+    evaluationSummary.critical -
+    evaluationSummary.high -
+    evaluationSummary.medium -
+    evaluationSummary.low;
+
+  const adoptionPct = (
+    (wizCount / Math.max(filteredPipelines.length, 1)) *
+    100
+  ).toFixed(1);
+
+  const activeFilterCount = Object.values(filters).filter(
+    (value) => value !== "All",
+  ).length;
+
   /* =====================================
      RENDER
   ====================================== */
@@ -427,197 +698,288 @@ function Dashboard() {
   return (
     <div className="dashboard">
       {/* =================================
+          HEADER
+      ================================== */}
+
+      <header className="dash-header">
+        <div className="dash-header-brand">
+          <div className="dash-logo">
+            <ShieldCheck size={20} />
+          </div>
+
+          <div>
+            <h1>Pipeline Security Dashboard</h1>
+            <p>Real-time visibility into pipeline compliance &amp; ownership</p>
+          </div>
+        </div>
+
+        <button className="action-button action-button--ghost" onClick={loadData}>
+          <RefreshCw size={15} />
+          Refresh Data
+        </button>
+      </header>
+
+      {/* =================================
           TABS
       ================================== */}
 
-      <div className="tabs">
-        {[
-          "Overall Templates",
-          "Java Template",
-          "Node Js Template",
-          "CI Dot Net Template",
-          "OIDC Template",
-          "Rapid Recovery",
-          "LambdaCI Python",
-          "SSM Templates",
-          "Wiz Templates",
-          "ECS CD Template",
-          "Kong Templates",
-        ].map((tab: string) => (
-          <div
-            key={tab}
-            className={tab === "Wiz Templates" ? "tab active" : "tab"}
+      <nav className="tabs">
+        <button type="button" className="tab active">
+          Wiz Templates
+        </button>
+
+        <div className="tab-more-wrap">
+          <select
+            className="tab-more-select"
+            value=""
+            onChange={() => {}}
+            aria-label="Other templates"
           >
-            {tab}
-          </div>
-        ))}
-      </div>
+            <option value="" disabled>
+              Other Templates
+            </option>
+
+            {[
+              "Overall Templates",
+              "Java Template",
+              "Node Js Template",
+              "CI Dot Net Template",
+              "OIDC Template",
+              "Rapid Recovery",
+              "LambdaCI Python",
+              "SSM Templates",
+              "ECS CD Template",
+              "Kong Templates",
+            ].map((tab: string) => (
+              <option key={tab} value={tab}>
+                {tab}
+              </option>
+            ))}
+          </select>
+
+          <ChevronDown size={14} className="tab-more-caret" />
+        </div>
+      </nav>
 
       <div className="content">
         {/* ===============================
             FILTERS
         ================================ */}
 
-        <div className="filters">
-          <Filter
-            label="Appci"
-            value={filters.project}
-            options={filterOptions.projects}
-            onChange={(value: string) =>
-              setFilters({
-                ...filters,
-                project: value,
-              })
-            }
-          />
+        <div className="filter-panel">
+          <div className="filter-panel-heading">
+            <span>
+              <SlidersHorizontal size={14} />
+              Filters
+            </span>
 
-          <Filter
-            label="VP"
-            value={filters.vp}
-            options={filterOptions.vps}
-            onChange={(value: string) =>
-              setFilters({
-                ...filters,
-                vp: value,
-              })
-            }
-          />
+            {activeFilterCount > 0 && (
+              <span className="filter-count-pill">{activeFilterCount} active</span>
+            )}
+          </div>
 
-          <Filter
-            label="Managing Director"
-            value={filters.managingDirector}
-            options={filterOptions.managing_directors}
-            onChange={(value: string) =>
-              setFilters({
-                ...filters,
-                managingDirector: value,
-              })
-            }
-          />
+          <div className="filters">
+            <Filter
+              label="Appci"
+              value={filters.project}
+              options={filterOptions.projects}
+              onChange={(value: string) =>
+                setFilters({
+                  ...filters,
+                  project: value,
+                })
+              }
+            />
 
-          <Filter
-            label="Director"
-            value={filters.director}
-            options={filterOptions.directors}
-            onChange={(value: string) =>
-              setFilters({
-                ...filters,
-                director: value,
-              })
-            }
-          />
+            <Filter
+              label="VP"
+              value={filters.vp}
+              options={filterOptions.vps}
+              onChange={(value: string) =>
+                setFilters({
+                  ...filters,
+                  vp: value,
+                })
+              }
+            />
 
-          <Filter
-            label="Owned By"
-            value={filters.managedBy}
-            options={filterOptions.managed_by}
-            onChange={(value: string) =>
-              setFilters({
-                ...filters,
-                managedBy: value,
-              })
-            }
-          />
+            <Filter
+              label="Managing Director"
+              value={filters.managingDirector}
+              options={filterOptions.managing_directors}
+              onChange={(value: string) =>
+                setFilters({
+                  ...filters,
+                  managingDirector: value,
+                })
+              }
+            />
 
-          <Filter
-            label="Uses Wiz Template"
-            value={filters.usesWiz}
-            options={["true", "false"]}
-            onChange={(value: string) =>
-              setFilters({
-                ...filters,
-                usesWiz: value,
-              })
-            }
-          />
+            <Filter
+              label="Director"
+              value={filters.director}
+              options={filterOptions.directors}
+              onChange={(value: string) =>
+                setFilters({
+                  ...filters,
+                  director: value,
+                })
+              }
+            />
 
-          <Filter
-            label="CF Vs TF"
-            value={filters.iacTool}
-            options={filterOptions.iac_tools || []}
-            onChange={(value: string) =>
-              setFilters({
-                ...filters,
-                iacTool: value,
-              })
-            }
-          />
-        </div>
+            <Filter
+              label="Owned By"
+              value={filters.managedBy}
+              options={filterOptions.managed_by}
+              onChange={(value: string) =>
+                setFilters({
+                  ...filters,
+                  managedBy: value,
+                })
+              }
+            />
 
-        {/* ===============================
-            ACTIONS
-        ================================ */}
+            <Filter
+              label="Uses Wiz Template"
+              value={filters.usesWiz}
+              options={["true", "false"]}
+              onChange={(value: string) =>
+                setFilters({
+                  ...filters,
+                  usesWiz: value,
+                })
+              }
+            />
 
-        <div className="actions">
-          <div className="search-box">
-            <Search size={16} />
-
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search pipelines..."
+            <Filter
+              label="CF Vs TF"
+              value={filters.iacTool}
+              options={filterOptions.iac_tools || []}
+              onChange={(value: string) =>
+                setFilters({
+                  ...filters,
+                  iacTool: value,
+                })
+              }
             />
           </div>
 
-          <button className="action-button" onClick={loadData}>
-            <RefreshCw size={15} />
-            Refresh
-          </button>
+          {/* ===============================
+              ACTIONS
+          ================================ */}
 
-          <button className="action-button" onClick={resetFilters}>
-            <X size={15} />
-            Clear
-          </button>
+          <div className="actions">
+            <div className="search-box">
+              <Search size={16} />
+
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search pipelines..."
+              />
+            </div>
+
+            <button className="action-button" onClick={resetFilters}>
+              <X size={15} />
+              Clear Filters
+            </button>
+          </div>
+        </div>
+
+        {/* ===============================
+            KPI ROW
+        ================================ */}
+
+        <div className="stat-row">
+          <StatCard
+            label="Pipelines Using Wiz Template"
+            value={formatNumber(summary.total_pipelines)}
+            icon={<GitBranch size={20} />}
+            accent="indigo"
+          />
+
+          <StatCard
+            label="Appci Count"
+            value={formatNumber(summary.appci_count)}
+            icon={<Building2 size={20} />}
+            accent="blue"
+          />
+
+          <StatCard
+            label="Total Executions"
+            value={formatNumber(evaluationSummary.total_executions)}
+            icon={<Clock size={20} />}
+            accent="emerald"
+          />
+
+          <StatCard
+            label="Wiz Adoption Rate"
+            value={`${adoptionPct}%`}
+            icon={<PieChartIcon size={20} />}
+            accent="amber"
+          />
         </div>
 
         {/* ===============================
             DASHBOARD
         ================================ */}
 
-        <div className="top-grid">
-          <Card title="# of Pipelines Using Wiz Template" className="kpi">
-            <div className="number">
-              {formatNumber(summary.total_pipelines)}
-            </div>
-          </Card>
-
-          <Card title="# Appci Count" className="kpi">
-            <div className="number">{formatNumber(summary.appci_count)}</div>
-          </Card>
-
+        <div className="row-grid row-grid--donut">
           {/* PIE */}
 
-          <Card title="Wiz Pipeline Adoption %" className="pie">
-            <ResponsiveContainer width="100%" height={230}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="40%"
-                  cy="50%"
-                  outerRadius={80}
-                  label={({ value }) =>
-                    `${value} (${(
-                      (value / Math.max(filteredPipelines.length, 1)) *
-                      100
-                    ).toFixed(2)}%)`
-                  }
-                >
-                  {pieData.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index]} />
-                  ))}
-                </Pie>
+          <Card title="Wiz Pipeline Adoption" className="pie" icon={<PieChartIcon size={14} />}>
+            {filteredPipelines.length === 0 ? (
+              <div className="chart-empty" style={{ height: 230 }}>
+                <PieChartIcon size={22} />
+                <span>No data available</span>
+              </div>
+            ) : (
+              <div className="donut-wrap">
+                <ResponsiveContainer width="100%" height={230}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={62}
+                      outerRadius={86}
+                      paddingAngle={2}
+                      cornerRadius={6}
+                      strokeWidth={0}
+                    >
+                      {pieData.map((_, index) => (
+                        <Cell key={index} fill={COLORS[index]} />
+                      ))}
+                    </Pie>
 
-                <Legend
-                  layout="vertical"
-                  verticalAlign="middle"
-                  align="right"
-                />
-              </PieChart>
-            </ResponsiveContainer>
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: 10,
+                        border: "1px solid #e2e8f0",
+                        fontSize: 12,
+                      }}
+                    />
+
+                    <Legend
+                      verticalAlign="bottom"
+                      iconType="circle"
+                      wrapperStyle={{ fontSize: 11 }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="donut-center">
+                  <strong>{adoptionPct}%</strong>
+                  <span>Adoption</span>
+                </div>
+              </div>
+            )}
           </Card>
+        </div>
 
+        <div className="row-grid row-grid--triple-equal">
           <BarChartCard title="#Pipeline by Projects" data={projectsData} />
 
           <BarChartCard title="#Pipeline by VP" data={vpData} />
@@ -627,6 +989,13 @@ function Dashboard() {
             data={directorData}
             rotate
           />
+
+          <HighlightCard
+            label="Wiz Adoption Rate"
+            value={`${adoptionPct}%`}
+            sublabel={`${formatNumber(wizCount)} of ${formatNumber(filteredPipelines.length)} pipelines`}
+            data={dashboard.charts.evaluations_by_date}
+          />
         </div>
 
         {/* ===============================
@@ -634,11 +1003,10 @@ function Dashboard() {
         ================================ */}
 
         <div className="two-column">
-          <BarChartCard
+          <RankedList
             title="#Pipeline by Managing Director"
-            data={managingDirectorData}
-            rotate
-            height={260}
+            icon={<Building2 size={14} />}
+            data={managingDirectorListData}
           />
 
           <BarChartCard
@@ -655,16 +1023,20 @@ function Dashboard() {
 
         <div className="bottom-grid">
           <Card
-            title={`Pipeline Inventory (${formatNumber(
-              filteredPipelines.length,
-            )})`}
+            title={`Pipeline Inventory`}
             className="table-card"
+            icon={<GitBranch size={14} />}
+            action={
+              <span className="card-title-count">
+                {formatNumber(filteredPipelines.length)} results
+              </span>
+            }
           >
             <div className="table-container">
               <table>
                 <thead>
                   <tr>
-                    <th>Wiz Template In-Use</th>
+                    <th>Wiz Template</th>
 
                     <th>Project</th>
 
@@ -693,21 +1065,39 @@ function Dashboard() {
                         <span
                           className={pipeline.uses_wiz_template ? "yes" : "no"}
                         >
-                          {String(pipeline.uses_wiz_template)}
+                          <span className="status-dot" />
+                          {pipeline.uses_wiz_template ? "True" : "False"}
                         </span>
                       </td>
 
-                      <td>{pipeline.project}</td>
+                      <td>
+                        <span className="project-chip">{pipeline.project}</span>
+                      </td>
 
                       <td>{pipeline.project_name}</td>
 
                       <td title={pipeline.pipeline}>
-                        {truncate(pipeline.pipeline, 35)}
+                        <code className="pipeline-name">
+                          {truncate(pipeline.pipeline, 35)}
+                        </code>
                       </td>
 
-                      <td>{pipeline.iac_tool || "-"}</td>
+                      <td>
+                        {pipeline.iac_tool ? (
+                          <span className="iac-pill">{pipeline.iac_tool}</span>
+                        ) : (
+                          <span className="cell-muted">-</span>
+                        )}
+                      </td>
 
-                      <td>{truncate(pipeline.vp)}</td>
+                      <td>
+                        <span className="person-cell">
+                          <span className="person-avatar">
+                            {initials(pipeline.vp)}
+                          </span>
+                          {truncate(pipeline.vp)}
+                        </span>
+                      </td>
 
                       <td>{truncate(pipeline.managing_director)}</td>
 
@@ -716,6 +1106,14 @@ function Dashboard() {
                       <td>{truncate(pipeline.managed_by)}</td>
                     </tr>
                   ))}
+
+                  {visiblePipelines.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="empty-row">
+                        No pipelines match the current filters.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -733,10 +1131,11 @@ function Dashboard() {
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}
                 >
+                  <ChevronLeft size={14} />
                   Previous
                 </button>
 
-                <span>
+                <span className="pagination-page">
                   {page} / {totalPages}
                 </span>
 
@@ -745,6 +1144,7 @@ function Dashboard() {
                   onClick={() => setPage((p) => p + 1)}
                 >
                   Next
+                  <ChevronRight size={14} />
                 </button>
               </div>
             </div>
@@ -754,7 +1154,7 @@ function Dashboard() {
               EVALUATION
           ============================== */}
 
-          <Card title="Evaluation Summary" className="evaluation">
+          <Card title="Evaluation Summary" className="evaluation" icon={<ShieldCheck size={14} />}>
             <div className="evaluation-stats">
               <div>
                 <strong>
@@ -764,72 +1164,84 @@ function Dashboard() {
                 <span>Executions</span>
               </div>
 
-              <div>
-                <strong>
-                  {formatNumber(
-                    evaluationSummary.total_executions -
-                      evaluationSummary.critical -
-                      evaluationSummary.high -
-                      evaluationSummary.medium -
-                      evaluationSummary.low,
-                  )}
-                </strong>
+              <div className="stat-pass">
+                <strong>{formatNumber(passCount)}</strong>
 
                 <span>Pass</span>
               </div>
 
-              <div>
+              <div className="stat-high">
                 <strong>{evaluationSummary.high}</strong>
 
                 <span>High</span>
               </div>
 
-              <div>
+              <div className="stat-medium">
                 <strong>{evaluationSummary.medium}</strong>
 
                 <span>Medium</span>
               </div>
 
-              <div>
+              <div className="stat-low">
                 <strong>{evaluationSummary.low}</strong>
 
                 <span>Low</span>
               </div>
 
-              <div>
+              <div className="stat-critical">
                 <strong>{evaluationSummary.critical}</strong>
 
                 <span>Critical</span>
               </div>
             </div>
 
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={dashboard.charts.evaluations_by_date}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <ResponsiveContainer width="100%" height={150}>
+              <AreaChart data={dashboard.charts.evaluations_by_date}>
+                <defs>
+                  <linearGradient id="evalArea" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#4338ca" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#4338ca" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2f7" />
 
                 <XAxis
                   dataKey="date"
                   tick={{
                     fontSize: 10,
+                    fill: "#64748b",
                   }}
+                  axisLine={{ stroke: "#e2e8f0" }}
+                  tickLine={false}
                 />
 
                 <YAxis
                   allowDecimals={false}
                   tick={{
                     fontSize: 10,
+                    fill: "#64748b",
+                  }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: 10,
+                    border: "1px solid #e2e8f0",
+                    fontSize: 12,
                   }}
                 />
 
-                <Tooltip />
-
-                <Line
+                <Area
                   type="monotone"
                   dataKey="count"
-                  stroke="#081b70"
-                  strokeWidth={3}
+                  stroke="#4338ca"
+                  strokeWidth={2.5}
+                  fill="url(#evalArea)"
                 />
-              </LineChart>
+              </AreaChart>
             </ResponsiveContainer>
 
             <div className="evaluation-list">
@@ -839,7 +1251,11 @@ function Dashboard() {
                   <div className="evaluation-row" key={index}>
                     <span>{truncate(evaluation.pipeline, 30)}</span>
 
-                    <span className="pass">{evaluation.evaluation_status}</span>
+                    <span
+                      className={`status-pill status-${evaluation.evaluation_status?.toLowerCase()}`}
+                    >
+                      {evaluation.evaluation_status}
+                    </span>
                   </div>
                 ))}
             </div>
