@@ -17,5 +17,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client"]
   },
-  "include": ["src", "src/data", "Dashboard.json"]
+  "include": ["src", "src/data", "public/data/Dashboard.json"]
 }
